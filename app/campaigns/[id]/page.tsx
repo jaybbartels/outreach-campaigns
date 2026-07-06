@@ -36,6 +36,8 @@ export default function CampaignDetailPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sendSuccess, setSendSuccess] = useState('')
 
   useEffect(() => {
     loadCampaign()
@@ -66,6 +68,84 @@ export default function CampaignDetailPage() {
     }
   }
 
+  const handleSendCampaign = async () => {
+    setSending(true)
+    setError('')
+    setSendSuccess('')
+
+    try {
+      console.log('Sending campaign:', campaignId)
+      
+      const response = await fetch('/api/send-emails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaignId: campaignId,
+          sendAll: false,
+        }),
+      })
+
+      const result = await response.json()
+      console.log('Send result:', result)
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to send campaign')
+      }
+
+      setSendSuccess(`✅ ${result.message}`)
+      
+      setTimeout(() => {
+        loadCampaign()
+      }, 1000)
+    } catch (err) {
+      console.error('Send error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to send campaign')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const handleSendAllPending = async () => {
+    if (!window.confirm('Send all pending emails across ALL campaigns? This cannot be undone.')) {
+      return
+    }
+
+    setSending(true)
+    setError('')
+    setSendSuccess('')
+
+    try {
+      console.log('Sending all pending emails')
+      
+      const response = await fetch('/api/send-emails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaignId: null,
+          sendAll: true,
+        }),
+      })
+
+      const result = await response.json()
+      console.log('Send all result:', result)
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to send emails')
+      }
+
+      setSendSuccess(`✅ ${result.message}`)
+      
+      setTimeout(() => {
+        loadCampaign()
+      }, 1000)
+    } catch (err) {
+      console.error('Send all error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to send emails')
+    } finally {
+      setSending(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -88,6 +168,8 @@ export default function CampaignDetailPage() {
     )
   }
 
+  const pendingMessages = messages.filter((m) => m.status === 'pending')
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <Header title={campaign.name} subtitle={campaign.purpose} />
@@ -96,6 +178,12 @@ export default function CampaignDetailPage() {
         {error && (
           <div className="mb-6 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
             <p className="text-red-900 font-bold">❌ Error: {error}</p>
+          </div>
+        )}
+
+        {sendSuccess && (
+          <div className="mb-6 p-4 bg-green-50 border-2 border-green-300 rounded-lg">
+            <p className="text-green-900 font-bold">{sendSuccess}</p>
           </div>
         )}
 
@@ -119,7 +207,7 @@ export default function CampaignDetailPage() {
           </div>
 
           {/* Metrics Grid */}
-          <div className="grid grid-cols-4 gap-6">
+          <div className="grid grid-cols-4 gap-6 mb-8">
             <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6">
               <p className="text-gray-700 font-semibold text-sm mb-2">Recipients</p>
               <p className="text-4xl font-bold text-blue-900">{campaign.total_recipients}</p>
@@ -137,6 +225,31 @@ export default function CampaignDetailPage() {
               <p className="text-4xl font-bold text-pink-900">{campaign.replied_count || 0}</p>
             </div>
           </div>
+
+          {/* Send Buttons */}
+          {pendingMessages.length > 0 && (
+            <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-6 mb-8">
+              <p className="text-yellow-900 font-bold mb-4">
+                ⚠️ {pendingMessages.length} pending message(s) ready to send
+              </p>
+              <div className="flex gap-4">
+                <button
+                  onClick={handleSendCampaign}
+                  disabled={sending}
+                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-3 px-6 rounded-lg text-lg"
+                >
+                  {sending ? '⏳ Sending...' : `📧 Send Campaign (${pendingMessages.length})`}
+                </button>
+                <button
+                  onClick={handleSendAllPending}
+                  disabled={sending}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold py-3 px-6 rounded-lg text-lg"
+                >
+                  {sending ? '⏳ Sending...' : '🚀 Send All Pending'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Messages Table */}
@@ -165,6 +278,7 @@ export default function CampaignDetailPage() {
                       <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${
                         msg.status === 'sent' ? 'bg-green-100 text-green-900' :
                         msg.status === 'pending' ? 'bg-yellow-100 text-yellow-900' :
+                        msg.status === 'failed' ? 'bg-red-100 text-red-900' :
                         'bg-gray-100 text-gray-900'
                       }`}>
                         {msg.status}

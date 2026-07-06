@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
         const mailMessage = {
           to: msg.executive_email,
-          from: 'outreach@classroomclick.com',
+          from: "jay@classroomclick.com",,
           subject: 'Professional Connection',
           text: msg.message_content,
           html: `<p>${msg.message_content.replace(/\n/g, '<br>')}</p>`,
