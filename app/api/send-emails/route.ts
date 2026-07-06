@@ -6,15 +6,16 @@ export async function POST(request: Request) {
   try {
     const { campaignId, sendAll } = await request.json()
 
+    console.log('API Key set:', !!process.env.SENDGRID_API_KEY)
+    console.log('API Key length:', process.env.SENDGRID_API_KEY?.length)
+
     if (!process.env.SENDGRID_API_KEY) {
-      throw new Error('SendGrid API key not configured')
+      throw new Error('SendGrid API key not configured - check Vercel environment variables')
     }
 
     sgMail.setApiKey(process.env.SENDGRID_API_KEY)
+    console.log('SendGrid initialized')
 
-    console.log(`Sending emails. Campaign: ${campaignId}, SendAll: ${sendAll}`)
-
-    // Get pending messages
     let query = supabase
       .from('campaign_messages')
       .select('*')
@@ -44,10 +45,9 @@ export async function POST(request: Request) {
     let failedCount = 0
     const errors: any[] = []
 
-    // Send each message
     for (const msg of messages) {
       try {
-        console.log(`Sending to ${msg.executive_email}...`)
+        console.log(`Preparing to send to ${msg.executive_email}...`)
 
         const mailMessage = {
           to: msg.executive_email,
@@ -57,10 +57,11 @@ export async function POST(request: Request) {
           html: `<p>${msg.message_content.replace(/\n/g, '<br>')}</p>`,
         }
 
+        console.log('Mail message:', JSON.stringify(mailMessage, null, 2))
+        
         const response = await sgMail.send(mailMessage)
-        console.log(`Sent to ${msg.executive_email}:`, response[0].statusCode)
+        console.log(`✅ Sent to ${msg.executive_email}:`, response[0].statusCode)
 
-        // Update message status
         await supabase
           .from('campaign_messages')
           .update({
@@ -72,14 +73,13 @@ export async function POST(request: Request) {
 
         sentCount++
       } catch (err) {
-        console.error(`Failed to send to ${msg.executive_email}:`, err)
+        console.error(`❌ Failed to send to ${msg.executive_email}:`, err)
         failedCount++
         errors.push({
           email: msg.executive_email,
           error: err instanceof Error ? err.message : 'Unknown error',
         })
 
-        // Update with error
         await supabase
           .from('campaign_messages')
           .update({
@@ -90,13 +90,14 @@ export async function POST(request: Request) {
       }
     }
 
-    // Update campaign sent count
     if (campaignId && !sendAll) {
       await supabase
         .from('campaigns')
         .update({ sent_count: sentCount })
         .eq('id', campaignId)
     }
+
+    console.log(`Summary: Sent ${sentCount}, Failed ${failedCount}`)
 
     return Response.json({
       success: true,
@@ -106,7 +107,7 @@ export async function POST(request: Request) {
       message: `Sent ${sentCount} emails. Failed: ${failedCount}`,
     })
   } catch (error) {
-    console.error('Send email error:', error)
+    console.error('❌ Send email error:', error)
     return Response.json({
       error: error instanceof Error ? error.message : 'Failed to send emails',
     }, { status: 500 })
