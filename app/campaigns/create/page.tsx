@@ -27,11 +27,10 @@ export default function CreateCampaignPage() {
     setLoading(true)
 
     try {
-      // Create campaign
       const { data, error } = await supabase
         .from('campaigns')
         .insert([{
-          user_id: 'demo-user-001', // Replace with actual user ID
+          user_id: 'demo-user-001',
           name: formData.name,
           channel: formData.channel,
           purpose: formData.purpose,
@@ -41,7 +40,6 @@ export default function CreateCampaignPage() {
 
       if (error) throw error
 
-      // Redirect to campaign detail
       router.push(`/campaigns/${data[0].id}`)
     } catch (error) {
       console.error('Error creating campaign:', error)
@@ -52,19 +50,19 @@ export default function CreateCampaignPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto">
-        <Link href="/campaigns" className="text-blue-600 hover:underline mb-6 inline-block">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
+      <div className="max-w-3xl mx-auto">
+        <Link href="/campaigns" className="text-blue-600 hover:text-blue-700 font-semibold mb-8 inline-block text-lg">
           ← Back to Campaigns
         </Link>
 
-        <div className="bg-white rounded-lg shadow p-8">
-          <h1 className="text-3xl font-bold mb-2">Create New Campaign</h1>
-          <p className="text-gray-600 mb-8">Set up a new outreach campaign to your selected executives</p>
+        <div className="bg-white rounded-xl shadow-lg p-12">
+          <h1 className="text-4xl font-bold text-gray-900 mb-3">Create New Campaign</h1>
+          <p className="text-lg text-gray-700 mb-12 pb-6 border-b border-gray-200">Set up a new outreach campaign to your selected executives</p>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-8">
             <div>
-              <label className="block text-sm font-semibold mb-2">Campaign Name</label>
+              <label className="block text-lg font-bold text-gray-900 mb-3">Campaign Name</label>
               <input
                 type="text"
                 name="name"
@@ -72,17 +70,17 @@ export default function CreateCampaignPage() {
                 value={formData.name}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-5 py-3 text-lg border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 placeholder-gray-400"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">Channel</label>
+              <label className="block text-lg font-bold text-gray-900 mb-3">Channel</label>
               <select
                 name="channel"
                 value={formData.channel}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-5 py-3 text-lg border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white text-gray-900"
               >
                 <option value="email">📧 Email</option>
                 <option value="linkedin">💼 LinkedIn</option>
@@ -91,28 +89,28 @@ export default function CreateCampaignPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">Campaign Purpose</label>
+              <label className="block text-lg font-bold text-gray-900 mb-3">Campaign Purpose</label>
               <textarea
                 name="purpose"
                 placeholder="What is the goal of this campaign? e.g., Introduce partnership opportunity"
                 value={formData.purpose}
                 onChange={handleChange}
-                rows={4}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={5}
+                className="w-full px-5 py-3 text-lg border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 placeholder-gray-400"
               />
             </div>
 
-            <div className="flex gap-4">
+            <div className="flex gap-4 pt-6">
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-medium"
+                className="flex-1 bg-blue-600 text-white py-4 text-lg font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
               >
-                {loading ? 'Creating...' : 'Create Campaign'}
+                {loading ? 'Creating...' : '✓ Create Campaign'}
               </button>
               <Link
                 href="/campaigns"
-                className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg hover:bg-gray-300 font-medium text-center"
+                className="flex-1 bg-gray-300 text-gray-900 py-4 text-lg font-bold rounded-lg hover:bg-gray-400 text-center transition-colors"
               >
                 Cancel
               </Link>
