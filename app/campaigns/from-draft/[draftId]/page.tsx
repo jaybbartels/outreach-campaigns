@@ -22,7 +22,6 @@ interface Executive {
   title: string
 }
 
-// Generate a v4 UUID
 function generateUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     const r = Math.random() * 16 | 0
@@ -51,19 +50,34 @@ export default function FromDraftPage() {
 
   const loadData = async () => {
     try {
+      console.log('Loading draft with ID:', draftId)
+      
       const { data: draftData, error: draftError } = await supabase
         .from('campaign_drafts')
         .select('*')
         .eq('id', draftId)
         .single()
 
-      if (draftError) throw draftError
+      if (draftError) {
+        console.error('Draft error:', draftError)
+        throw new Error(`Draft load failed: ${draftError.message}`)
+      }
+
+      if (!draftData) {
+        throw new Error(`No draft found with ID: ${draftId}`)
+      }
+
+      console.log('Draft loaded successfully:', draftData)
       setDraft(draftData)
       setSelectedIds(new Set(draftData.selected_executive_ids))
 
-      const { data: execData } = await supabase
+      const { data: execData, error: execError } = await supabase
         .from('executives')
         .select('id, name, email, title')
+
+      if (execError) {
+        console.error('Executives error:', execError)
+      }
 
       setAllExecutives(execData || [])
 
@@ -74,7 +88,9 @@ export default function FromDraftPage() {
 
       setExecutives(selectedExecs || [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load draft')
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load draft'
+      console.error('Load error:', errorMsg)
+      setError(errorMsg)
     } finally {
       setLoading(false)
     }
@@ -105,8 +121,6 @@ export default function FromDraftPage() {
         throw new Error('Test email required')
       }
 
-      console.log('Creating campaign...')
-      
       const { data: campaign, error: campaignError } = await supabase
         .from('campaigns')
         .insert([{
@@ -120,17 +134,14 @@ export default function FromDraftPage() {
         .select()
 
       if (campaignError) {
-        console.error('Campaign error:', campaignError)
         throw campaignError
       }
 
       const campaignId = campaign[0].id
-      console.log('Campaign created:', campaignId)
 
       let messagesToAdd: any[] = []
       
       if (testMode) {
-        console.log('Test mode - creating 1 message for:', testEmail)
         messagesToAdd = [{
           campaign_id: campaignId,
           executive_id: generateUUID(),
@@ -141,7 +152,6 @@ export default function FromDraftPage() {
           status: 'pending',
         }]
       } else {
-        console.log('Regular mode - creating', selectedIds.size, 'messages')
         messagesToAdd = (draft?.messages || [])
           .filter((msg: any) => selectedIds.has(msg.executiveId))
           .map((msg: any) => ({
@@ -155,23 +165,17 @@ export default function FromDraftPage() {
           }))
       }
 
-      console.log('Messages to insert:', messagesToAdd.length)
-
-      const { data: insertedMessages, error: messagesError } = await supabase
+      const { error: messagesError } = await supabase
         .from('campaign_messages')
         .insert(messagesToAdd)
-        .select()
 
       if (messagesError) {
-        console.error('Messages error details:', messagesError)
         throw messagesError
       }
 
-      console.log('Messages inserted:', insertedMessages?.length)
       router.push(`/campaigns/${campaignId}`)
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : JSON.stringify(err)
-      console.error('Full error:', errorMsg)
       setError(errorMsg)
     } finally {
       setSending(false)
@@ -183,7 +187,7 @@ export default function FromDraftPage() {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
         <Header />
         <div className="max-w-7xl mx-auto px-6 py-12">
-          <p>Loading...</p>
+          <p className="text-gray-900 font-semibold">Loading draft...</p>
         </div>
       </div>
     )
@@ -194,7 +198,17 @@ export default function FromDraftPage() {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
         <Header />
         <div className="max-w-7xl mx-auto px-6 py-12">
-          <p className="text-red-600">Draft not found</p>
+          <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6">
+            <p className="text-red-900 font-bold text-lg mb-2">❌ Draft Not Found</p>
+            <p className="text-red-800 mb-4">{error}</p>
+            <p className="text-red-700 text-sm mb-4">Draft ID: {draftId}</p>
+            <Link
+              href="/campaigns"
+              className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg"
+            >
+              ← Back to Campaigns
+            </Link>
+          </div>
         </div>
       </div>
     )
@@ -206,31 +220,30 @@ export default function FromDraftPage() {
 
       <main className="max-w-6xl mx-auto px-6 py-12">
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-300 rounded-lg">
-            <p className="text-red-800 font-semibold">❌ Error: {error}</p>
-            <p className="text-red-700 text-sm mt-2">Check F12 console for details</p>
+          <div className="mb-6 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
+            <p className="text-red-900 font-bold">❌ Error: {error}</p>
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-8 mb-8">
-          <div className="bg-white rounded-xl shadow-lg p-10 border border-gray-200">
+          <div className="bg-white rounded-xl shadow-lg p-10 border-2 border-gray-200">
             <h3 className="text-2xl font-bold text-gray-900 mb-6">Campaign Details</h3>
             <div className="space-y-4">
               <div>
-                <p className="text-gray-600 text-sm">Purpose</p>
+                <p className="text-gray-700 font-semibold text-sm">Purpose</p>
                 <p className="font-semibold text-gray-900">{draft.purpose}</p>
               </div>
               <div>
-                <p className="text-gray-600 text-sm">Channel</p>
+                <p className="text-gray-700 font-semibold text-sm">Channel</p>
                 <p className="font-semibold text-gray-900">📧 {draft.channel}</p>
               </div>
               <div>
-                <p className="text-gray-600 text-sm">Messages</p>
+                <p className="text-gray-700 font-semibold text-sm">Messages</p>
                 <p className="font-semibold text-gray-900">{draft.messages.length}</p>
               </div>
             </div>
 
-            <div className="mt-8 bg-purple-50 border border-purple-200 rounded-lg p-5">
+            <div className="mt-8 bg-purple-50 border-2 border-purple-200 rounded-lg p-5">
               <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
@@ -256,15 +269,15 @@ export default function FromDraftPage() {
             )}
           </div>
 
-          <div className="bg-white rounded-xl shadow-lg p-10 border border-gray-200">
+          <div className="bg-white rounded-xl shadow-lg p-10 border-2 border-gray-200">
             <h3 className="text-2xl font-bold text-gray-900 mb-6">Targets ({selectedIds.size})</h3>
-            <p className="text-gray-600 text-sm mb-4">Select executives or keep draft selections</p>
+            <p className="text-gray-700 font-semibold text-sm mb-4">Select executives or keep draft selections</p>
 
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {allExecutives.map((exec) => (
                 <label
                   key={exec.id}
-                  className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-blue-50 cursor-pointer"
+                  className="flex items-center p-3 border-2 border-gray-200 rounded-lg hover:bg-blue-50 cursor-pointer"
                 >
                   <input
                     type="checkbox"
@@ -274,7 +287,7 @@ export default function FromDraftPage() {
                   />
                   <div className="ml-3 flex-1 min-w-0">
                     <p className="font-semibold text-gray-900 text-sm">{exec.name}</p>
-                    <p className="text-xs text-gray-600">{exec.email}</p>
+                    <p className="text-xs text-gray-700">{exec.email}</p>
                   </div>
                 </label>
               ))}
