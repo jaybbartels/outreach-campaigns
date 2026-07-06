@@ -22,6 +22,15 @@ interface Executive {
   title: string
 }
 
+// Generate a v4 UUID
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
+
 export default function FromDraftPage() {
   const params = useParams()
   const router = useRouter()
@@ -42,7 +51,6 @@ export default function FromDraftPage() {
 
   const loadData = async () => {
     try {
-      // Load draft
       const { data: draftData, error: draftError } = await supabase
         .from('campaign_drafts')
         .select('*')
@@ -53,14 +61,12 @@ export default function FromDraftPage() {
       setDraft(draftData)
       setSelectedIds(new Set(draftData.selected_executive_ids))
 
-      // Load executives from Outreach 1 MVP
       const { data: execData } = await supabase
         .from('executives')
         .select('id, name, email, title')
 
       setAllExecutives(execData || [])
 
-      // Load SELECTED executives
       const { data: selectedExecs } = await supabase
         .from('executives')
         .select('id, name, email, title')
@@ -82,8 +88,6 @@ export default function FromDraftPage() {
       newIds.add(id)
     }
     setSelectedIds(newIds)
-
-    // Update displayed executives
     const updated = allExecutives.filter((e) => newIds.has(e.id))
     setExecutives(updated)
   }
@@ -101,7 +105,8 @@ export default function FromDraftPage() {
         throw new Error('Test email required')
       }
 
-      // Create campaign
+      console.log('Creating campaign...')
+      
       const { data: campaign, error: campaignError } = await supabase
         .from('campaigns')
         .insert([{
@@ -114,25 +119,33 @@ export default function FromDraftPage() {
         }])
         .select()
 
-      if (campaignError) throw campaignError
+      if (campaignError) {
+        console.error('Campaign error:', campaignError)
+        throw campaignError
+      }
 
-      // Prepare messages for sending
-      let messagesToAdd
+      const campaignId = campaign[0].id
+      console.log('Campaign created:', campaignId)
+
+      let messagesToAdd: any[] = []
+      
       if (testMode) {
+        console.log('Test mode - creating 1 message for:', testEmail)
         messagesToAdd = [{
-          campaign_id: campaign[0].id,
-          executive_id: 'test-' + Date.now(),
+          campaign_id: campaignId,
+          executive_id: generateUUID(),
           executive_name: 'Test Recipient',
           executive_email: testEmail,
-          message_content: draft?.messages[0]?.emailMessage,
+          message_content: draft?.messages[0]?.emailMessage || 'Test message',
           channel: draft?.channel || 'email',
           status: 'pending',
         }]
       } else {
-        messagesToAdd = draft?.messages
+        console.log('Regular mode - creating', selectedIds.size, 'messages')
+        messagesToAdd = (draft?.messages || [])
           .filter((msg: any) => selectedIds.has(msg.executiveId))
           .map((msg: any) => ({
-            campaign_id: campaign[0].id,
+            campaign_id: campaignId,
             executive_id: msg.executiveId,
             executive_name: msg.executiveName,
             executive_email: msg.email,
@@ -142,15 +155,24 @@ export default function FromDraftPage() {
           }))
       }
 
-      const { error: messagesError } = await supabase
+      console.log('Messages to insert:', messagesToAdd.length)
+
+      const { data: insertedMessages, error: messagesError } = await supabase
         .from('campaign_messages')
         .insert(messagesToAdd)
+        .select()
 
-      if (messagesError) throw messagesError
+      if (messagesError) {
+        console.error('Messages error details:', messagesError)
+        throw messagesError
+      }
 
-      router.push(`/campaigns/${campaign[0].id}`)
+      console.log('Messages inserted:', insertedMessages?.length)
+      router.push(`/campaigns/${campaignId}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send')
+      const errorMsg = err instanceof Error ? err.message : JSON.stringify(err)
+      console.error('Full error:', errorMsg)
+      setError(errorMsg)
     } finally {
       setSending(false)
     }
@@ -185,12 +207,12 @@ export default function FromDraftPage() {
       <main className="max-w-6xl mx-auto px-6 py-12">
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-300 rounded-lg">
-            <p className="text-red-800 font-semibold">❌ {error}</p>
+            <p className="text-red-800 font-semibold">❌ Error: {error}</p>
+            <p className="text-red-700 text-sm mt-2">Check F12 console for details</p>
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-8 mb-8">
-          {/* Left: Campaign Info */}
           <div className="bg-white rounded-xl shadow-lg p-10 border border-gray-200">
             <h3 className="text-2xl font-bold text-gray-900 mb-6">Campaign Details</h3>
             <div className="space-y-4">
@@ -208,7 +230,6 @@ export default function FromDraftPage() {
               </div>
             </div>
 
-            {/* Test Mode */}
             <div className="mt-8 bg-purple-50 border border-purple-200 rounded-lg p-5">
               <label className="flex items-center cursor-pointer">
                 <input
@@ -235,10 +256,9 @@ export default function FromDraftPage() {
             )}
           </div>
 
-          {/* Right: Target Selection */}
           <div className="bg-white rounded-xl shadow-lg p-10 border border-gray-200">
             <h3 className="text-2xl font-bold text-gray-900 mb-6">Targets ({selectedIds.size})</h3>
-            <p className="text-gray-600 text-sm mb-4">Select executives from Outreach 1 MVP or keep draft selections</p>
+            <p className="text-gray-600 text-sm mb-4">Select executives or keep draft selections</p>
 
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {allExecutives.map((exec) => (
@@ -262,7 +282,6 @@ export default function FromDraftPage() {
           </div>
         </div>
 
-        {/* Send Buttons */}
         <div className="flex gap-4">
           <button
             onClick={handleSend}

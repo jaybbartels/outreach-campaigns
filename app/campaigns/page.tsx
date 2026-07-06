@@ -3,17 +3,15 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import Header from '@/components/Header'
 
 interface Campaign {
   id: string
   name: string
-  channel: string
   status: string
   total_recipients: number
   sent_count: number
   opened_count: number
-  clicked_count: number
-  replied_count: number
   created_at: string
 }
 
@@ -34,119 +32,83 @@ export default function CampaignsPage() {
 
       if (error) throw error
       setCampaigns(data || [])
-    } catch (error) {
-      console.error('Error loading campaigns:', error)
+    } catch (err) {
+      console.error('Failed to load campaigns:', err)
     } finally {
       setLoading(false)
     }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'sent':
-        return 'bg-green-100 text-green-800'
-      case 'sending':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'draft':
-        return 'bg-gray-100 text-gray-800'
-      default:
-        return 'bg-blue-100 text-blue-800'
-    }
-  }
-
-  const getChannelEmoji = (channel: string) => {
-    switch (channel) {
-      case 'email':
-        return '📧'
-      case 'linkedin':
-        return '💼'
-      case 'sms':
-        return '📱'
-      default:
-        return '📨'
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-500">Loading campaigns...</p>
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Campaigns</h1>
-            <p className="text-gray-600">Manage and track your outreach campaigns</p>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <Header title="Campaigns" subtitle="Manage your outreach campaigns" />
+
+      <main className="max-w-7xl mx-auto px-6 py-12">
+        <div className="flex gap-4 mb-8">
           <Link
             href="/campaigns/create"
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg"
           >
-            + New Campaign
+            + Create Campaign
           </Link>
         </div>
 
-        {/* Campaigns Table */}
-        {campaigns.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <p className="text-gray-500 mb-4">No campaigns yet</p>
-            <Link
-              href="/campaigns/create"
-              className="text-blue-600 hover:underline"
-            >
-              Create your first campaign
-            </Link>
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-100 border-b">
-                <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Campaign</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Channel</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Status</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Recipients</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Sent</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Opened</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Replied</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {campaigns.map((campaign) => (
-                  <tr key={campaign.id} className="border-b hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium">{campaign.name}</td>
-                    <td className="px-6 py-4">{getChannelEmoji(campaign.channel)} {campaign.channel}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(campaign.status)}`}>
-                        {campaign.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-center">{campaign.total_recipients}</td>
-                    <td className="px-6 py-4 text-center">{campaign.sent_count}</td>
-                    <td className="px-6 py-4 text-center">{campaign.opened_count}</td>
-                    <td className="px-6 py-4 text-center">{campaign.replied_count}</td>
-                    <td className="px-6 py-4">
-                      <Link
-                        href={`/campaigns/${campaign.id}`}
-                        className="text-blue-600 hover:underline text-sm"
-                      >
-                        View
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+        <div className="bg-white rounded-xl shadow-lg p-10 border-2 border-gray-200">
+          <h2 className="text-3xl font-bold text-gray-900 mb-6">Your Campaigns ({campaigns.length})</h2>
+
+          {loading ? (
+            <p className="text-gray-800 font-semibold">Loading campaigns...</p>
+          ) : campaigns.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-700 font-semibold mb-4">No campaigns yet</p>
+              <Link
+                href="/campaigns/create"
+                className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg"
+              >
+                Create your first campaign
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {campaigns.map((campaign) => (
+                <Link
+                  key={campaign.id}
+                  href={`/campaigns/${campaign.id}`}
+                  className="block p-6 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">{campaign.name}</h3>
+                      <p className="text-gray-700 text-sm mb-3">
+                        Created: {new Date(campaign.created_at).toLocaleDateString()}
+                      </p>
+                      <div className="flex gap-6">
+                        <div>
+                          <p className="text-gray-700 text-xs font-semibold">Recipients</p>
+                          <p className="text-2xl font-bold text-gray-900">{campaign.total_recipients}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-700 text-xs font-semibold">Sent</p>
+                          <p className="text-2xl font-bold text-green-700">{campaign.sent_count || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-700 text-xs font-semibold">Opened</p>
+                          <p className="text-2xl font-bold text-purple-700">{campaign.opened_count || 0}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <span className={`px-4 py-2 rounded-lg font-bold text-white text-sm ${
+                      campaign.status === 'sent' ? 'bg-green-600' : 'bg-yellow-600'
+                    }`}>
+                      {campaign.status.toUpperCase()}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   )
 }
