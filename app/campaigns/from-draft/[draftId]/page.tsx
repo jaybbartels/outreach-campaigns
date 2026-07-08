@@ -64,7 +64,6 @@ export default function FromDraftPage() {
 
   const loadData = async () => {
     try {
-      // Load draft
       const { data: draftData, error: draftError } = await supabase
         .from('campaign_drafts')
         .select('*')
@@ -75,7 +74,6 @@ export default function FromDraftPage() {
       setDraft(draftData)
       setSelectedIds(new Set(draftData.selected_executive_ids))
 
-      // Load user profile
       if (draftData.user_profile_id) {
         const { data: profileData, error: profileError } = await supabase
           .from('bd_profiles')
@@ -90,14 +88,12 @@ export default function FromDraftPage() {
         }
       }
 
-      // Load all executives
       const { data: execData } = await supabase
         .from('executives')
         .select('id, name, email, title')
 
       setAllExecutives(execData || [])
 
-      // Load selected executives
       const { data: selectedExecs } = await supabase
         .from('executives')
         .select('id, name, email, title')
@@ -136,7 +132,6 @@ export default function FromDraftPage() {
         throw new Error('Test email required')
       }
 
-      // Create campaign
       const { data: campaign, error: campaignError } = await supabase
         .from('campaigns')
         .insert([{
@@ -151,8 +146,8 @@ export default function FromDraftPage() {
 
       if (campaignError) throw campaignError
 
-      // Prepare messages
-      let messagesToAdd
+      let messagesToAdd: any[] = []
+
       if (testMode) {
         messagesToAdd = [{
           campaign_id: campaign[0].id,
@@ -164,7 +159,7 @@ export default function FromDraftPage() {
           status: 'pending',
         }]
       } else {
-        messagesToAdd = draft?.messages
+        messagesToAdd = (draft?.messages || [])
           .filter((msg: any) => selectedIds.has(msg.executiveId))
           .map((msg: any) => ({
             campaign_id: campaign[0].id,
@@ -175,6 +170,10 @@ export default function FromDraftPage() {
             channel: draft?.channel || 'email',
             status: 'pending',
           }))
+      }
+
+      if (messagesToAdd.length === 0) {
+        throw new Error('No messages to send')
       }
 
       const { error: messagesError } = await supabase
@@ -224,7 +223,6 @@ export default function FromDraftPage() {
           </div>
         )}
 
-        {/* User Profile Card */}
         {userProfile && (
           <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-xl shadow-lg p-6 mb-8">
             <h3 className="text-2xl font-bold text-gray-900 mb-4">📧 From: {userProfile.name}</h3>
@@ -250,7 +248,6 @@ export default function FromDraftPage() {
         )}
 
         <div className="grid grid-cols-2 gap-8 mb-8">
-          {/* Left: Campaign Info */}
           <div className="bg-white rounded-xl shadow-lg p-10 border-2 border-gray-200">
             <h3 className="text-2xl font-bold text-gray-900 mb-6">Campaign Details</h3>
             <div className="space-y-4">
@@ -294,7 +291,6 @@ export default function FromDraftPage() {
             )}
           </div>
 
-          {/* Right: Target Selection */}
           <div className="bg-white rounded-xl shadow-lg p-10 border-2 border-gray-200">
             <h3 className="text-2xl font-bold text-gray-900 mb-6">Targets ({selectedIds.size})</h3>
             <p className="text-gray-700 font-semibold text-sm mb-4">Select executives or keep draft selections</p>
