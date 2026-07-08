@@ -11,8 +11,21 @@ interface Draft {
   campaign_name: string
   purpose: string
   channel: string
+  user_profile_id: string
   selected_executive_ids: string[]
   messages: any[]
+}
+
+interface UserProfile {
+  id: string
+  name: string
+  title: string
+  company_name: string
+  email: string
+  phone?: string
+  linkedin_url?: string
+  expertise_tags?: string[]
+  goals?: string
 }
 
 interface Executive {
@@ -35,6 +48,7 @@ export default function FromDraftPage() {
   const router = useRouter()
   const draftId = params.draftId as string
   const [draft, setDraft] = useState<Draft | null>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [executives, setExecutives] = useState<Executive[]>([])
   const [allExecutives, setAllExecutives] = useState<Executive[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,37 +64,40 @@ export default function FromDraftPage() {
 
   const loadData = async () => {
     try {
-      console.log('Loading draft with ID:', draftId)
-      
+      // Load draft
       const { data: draftData, error: draftError } = await supabase
         .from('campaign_drafts')
         .select('*')
         .eq('id', draftId)
         .single()
 
-      if (draftError) {
-        console.error('Draft error:', draftError)
-        throw new Error(`Draft load failed: ${draftError.message}`)
-      }
-
-      if (!draftData) {
-        throw new Error(`No draft found with ID: ${draftId}`)
-      }
-
-      console.log('Draft loaded successfully:', draftData)
+      if (draftError) throw draftError
       setDraft(draftData)
       setSelectedIds(new Set(draftData.selected_executive_ids))
 
-      const { data: execData, error: execError } = await supabase
+      // Load user profile
+      if (draftData.user_profile_id) {
+        const { data: profileData, error: profileError } = await supabase
+          .from('bd_profiles')
+          .select('*')
+          .eq('id', draftData.user_profile_id)
+          .single()
+
+        if (profileError) {
+          console.warn('Profile load error:', profileError)
+        } else {
+          setUserProfile(profileData)
+        }
+      }
+
+      // Load all executives
+      const { data: execData } = await supabase
         .from('executives')
         .select('id, name, email, title')
 
-      if (execError) {
-        console.error('Executives error:', execError)
-      }
-
       setAllExecutives(execData || [])
 
+      // Load selected executives
       const { data: selectedExecs } = await supabase
         .from('executives')
         .select('id, name, email, title')
@@ -88,9 +105,7 @@ export default function FromDraftPage() {
 
       setExecutives(selectedExecs || [])
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to load draft'
-      console.error('Load error:', errorMsg)
-      setError(errorMsg)
+      setError(err instanceof Error ? err.message : 'Failed to load draft')
     } finally {
       setLoading(false)
     }
@@ -121,10 +136,11 @@ export default function FromDraftPage() {
         throw new Error('Test email required')
       }
 
+      // Create campaign
       const { data: campaign, error: campaignError } = await supabase
         .from('campaigns')
         .insert([{
-          user_id: 'demo-user-001',
+          user_id: userProfile?.id || 'demo-user-001',
           name: draft?.campaign_name,
           channel: draft?.channel,
           purpose: draft?.purpose,
@@ -133,17 +149,13 @@ export default function FromDraftPage() {
         }])
         .select()
 
-      if (campaignError) {
-        throw campaignError
-      }
+      if (campaignError) throw campaignError
 
-      const campaignId = campaign[0].id
-
-      let messagesToAdd: any[] = []
-      
+      // Prepare messages
+      let messagesToAdd
       if (testMode) {
         messagesToAdd = [{
-          campaign_id: campaignId,
+          campaign_id: campaign[0].id,
           executive_id: generateUUID(),
           executive_name: 'Test Recipient',
           executive_email: testEmail,
@@ -152,10 +164,10 @@ export default function FromDraftPage() {
           status: 'pending',
         }]
       } else {
-        messagesToAdd = (draft?.messages || [])
+        messagesToAdd = draft?.messages
           .filter((msg: any) => selectedIds.has(msg.executiveId))
           .map((msg: any) => ({
-            campaign_id: campaignId,
+            campaign_id: campaign[0].id,
             executive_id: msg.executiveId,
             executive_name: msg.executiveName,
             executive_email: msg.email,
@@ -169,14 +181,11 @@ export default function FromDraftPage() {
         .from('campaign_messages')
         .insert(messagesToAdd)
 
-      if (messagesError) {
-        throw messagesError
-      }
+      if (messagesError) throw messagesError
 
-      router.push(`/campaigns/${campaignId}`)
+      router.push(`/campaigns/${campaign[0].id}`)
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : JSON.stringify(err)
-      setError(errorMsg)
+      setError(err instanceof Error ? err.message : 'Failed to send')
     } finally {
       setSending(false)
     }
@@ -198,17 +207,7 @@ export default function FromDraftPage() {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
         <Header />
         <div className="max-w-7xl mx-auto px-6 py-12">
-          <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6">
-            <p className="text-red-900 font-bold text-lg mb-2">❌ Draft Not Found</p>
-            <p className="text-red-800 mb-4">{error}</p>
-            <p className="text-red-700 text-sm mb-4">Draft ID: {draftId}</p>
-            <Link
-              href="/campaigns"
-              className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg"
-            >
-              ← Back to Campaigns
-            </Link>
-          </div>
+          <p className="text-red-600 font-bold">Draft not found</p>
         </div>
       </div>
     )
@@ -221,11 +220,37 @@ export default function FromDraftPage() {
       <main className="max-w-6xl mx-auto px-6 py-12">
         {error && (
           <div className="mb-6 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
-            <p className="text-red-900 font-bold">❌ Error: {error}</p>
+            <p className="text-red-900 font-bold">❌ {error}</p>
+          </div>
+        )}
+
+        {/* User Profile Card */}
+        {userProfile && (
+          <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-xl shadow-lg p-6 mb-8">
+            <h3 className="text-2xl font-bold text-gray-900 mb-4">📧 From: {userProfile.name}</h3>
+            <div className="grid grid-cols-4 gap-4">
+              <div>
+                <p className="text-gray-700 text-sm font-semibold">Title</p>
+                <p className="text-gray-900 font-bold">{userProfile.title}</p>
+              </div>
+              <div>
+                <p className="text-gray-700 text-sm font-semibold">Company</p>
+                <p className="text-gray-900 font-bold">{userProfile.company_name}</p>
+              </div>
+              <div>
+                <p className="text-gray-700 text-sm font-semibold">Email</p>
+                <p className="text-gray-900 font-bold text-sm">{userProfile.email}</p>
+              </div>
+              <div>
+                <p className="text-gray-700 text-sm font-semibold">Goals</p>
+                <p className="text-gray-900 font-bold text-sm">{userProfile.goals || 'N/A'}</p>
+              </div>
+            </div>
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-8 mb-8">
+          {/* Left: Campaign Info */}
           <div className="bg-white rounded-xl shadow-lg p-10 border-2 border-gray-200">
             <h3 className="text-2xl font-bold text-gray-900 mb-6">Campaign Details</h3>
             <div className="space-y-4">
@@ -269,6 +294,7 @@ export default function FromDraftPage() {
             )}
           </div>
 
+          {/* Right: Target Selection */}
           <div className="bg-white rounded-xl shadow-lg p-10 border-2 border-gray-200">
             <h3 className="text-2xl font-bold text-gray-900 mb-6">Targets ({selectedIds.size})</h3>
             <p className="text-gray-700 font-semibold text-sm mb-4">Select executives or keep draft selections</p>
