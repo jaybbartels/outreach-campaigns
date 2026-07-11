@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { api } from '@/lib/api'
 import Link from 'next/link'
 import Header from '@/components/Header'
 
@@ -25,13 +25,8 @@ export default function CampaignsPage() {
 
   const loadCampaigns = async () => {
     try {
-      const { data, error } = await supabase
-        .from('campaigns')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setCampaigns(data || [])
+      const response = await api.getCampaigns()
+      setCampaigns(response.data?.campaigns || [])
     } catch (err) {
       console.error('Failed to load campaigns:', err)
     } finally {
@@ -49,65 +44,53 @@ export default function CampaignsPage() {
             href="/campaigns/create"
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg"
           >
-            + Create Campaign
+            Create Campaign
           </Link>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg p-10 border-2 border-gray-200">
-          <h2 className="text-3xl font-bold text-gray-900 mb-6">Your Campaigns ({campaigns.length})</h2>
-
-          {loading ? (
-            <p className="text-gray-800 font-semibold">Loading campaigns...</p>
-          ) : campaigns.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-700 font-semibold mb-4">No campaigns yet</p>
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin text-4xl mb-4">⏳</div>
+            <p className="text-gray-600">Loading campaigns...</p>
+          </div>
+        ) : campaigns.length > 0 ? (
+          <div className="grid gap-6">
+            {campaigns.map((campaign) => (
               <Link
-                href="/campaigns/create"
-                className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg"
+                key={campaign.id}
+                href={`/campaigns/${campaign.id}`}
+                className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition"
               >
-                Create your first campaign
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {campaigns.map((campaign) => (
-                <Link
-                  key={campaign.id}
-                  href={`/campaigns/${campaign.id}`}
-                  className="block p-6 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">{campaign.name}</h3>
-                      <p className="text-gray-700 text-sm mb-3">
-                        Created: {new Date(campaign.created_at).toLocaleDateString()}
-                      </p>
-                      <div className="flex gap-6">
-                        <div>
-                          <p className="text-gray-700 text-xs font-semibold">Recipients</p>
-                          <p className="text-2xl font-bold text-gray-900">{campaign.total_recipients}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-700 text-xs font-semibold">Sent</p>
-                          <p className="text-2xl font-bold text-green-700">{campaign.sent_count || 0}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-700 text-xs font-semibold">Opened</p>
-                          <p className="text-2xl font-bold text-purple-700">{campaign.opened_count || 0}</p>
-                        </div>
-                      </div>
-                    </div>
-                    <span className={`px-4 py-2 rounded-lg font-bold text-white text-sm ${
-                      campaign.status === 'sent' ? 'bg-green-600' : 'bg-yellow-600'
-                    }`}>
-                      {campaign.status.toUpperCase()}
-                    </span>
+                <h3 className="text-xl font-bold mb-2">{campaign.name}</h3>
+                <div className="grid grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-600">Status</p>
+                    <p className="font-semibold capitalize">{campaign.status}</p>
                   </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
+                  <div>
+                    <p className="text-gray-600">Recipients</p>
+                    <p className="font-semibold">{campaign.total_recipients}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Sent</p>
+                    <p className="font-semibold">{campaign.sent_count}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Opened</p>
+                    <p className="font-semibold">{campaign.opened_count}</p>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 bg-white rounded-lg">
+            <p className="text-gray-600 mb-4">No campaigns yet</p>
+            <Link href="/campaigns/create" className="text-blue-600 hover:underline">
+              Create your first campaign
+            </Link>
+          </div>
+        )}
       </main>
     </div>
   )
